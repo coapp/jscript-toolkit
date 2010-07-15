@@ -194,6 +194,38 @@ $$.Extend( {
         return result;
     },
     
+    RunCaptured : function(cmdline) {
+        cmdline = FormatArguments(arguments);
+        
+        try 
+        {
+            Environment.Set();
+            $StdOut = [];
+            $StdErr = [];
+            $LASTCMD = cmdline;
+            
+            var proc = $$.WSHShell.Exec(cmdline);
+            
+            $Children.push( { "process":proc, "cmdline":cmdline }); 
+            while (proc.Status == 0 || !proc.StdOut.AtEndOfStream || !proc.StdErr.AtEndOfStream) {
+                if (!proc.StdOut.AtEndOfStream) 
+                    $StdOut.push(proc.StdOut.ReadLine());
+                else if (!proc.StdErr.AtEndOfStream)
+                    $StdErr.push(proc.StdErr.ReadLine()); 
+                $$.WScript.Sleep(10);
+            }
+            
+            $ERRORLEVEL = proc.ExitCode;
+        }
+        catch(exc) {
+            print ("Error Message: " + exc.message);
+            print ("Error Code: " + (exc.number & 0xFFFF))
+            print ("Error Name: " + exc.name);
+        }
+        return $StdOutString = $StdOut.join("\r\n");
+    
+    },
+    
     RunAsync : function(cmdline) {
         cmdline = FormatArguments(arguments);
 
@@ -202,7 +234,7 @@ $$.Extend( {
         Log(cmdline);
         var proc = $$.WSHShell.Exec(cmdline);
         $Children.push( { "process":proc, "cmdline":cmdline });
-        return "";
+        return proc;
     },
     
     ExecCommandLine: function() {
