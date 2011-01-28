@@ -187,6 +187,11 @@ $$.Extend( {
         return $$(FormatArguments(arguments));
     },
 
+	cmd:function(){ 
+		// Call in CMD sub-process ( Wrap in CMD /C ). No call to String.Format() because of recursion.
+		return $$( FormatArguments( ( 'CMD /C "' + $A(arguments).shift() + '"' ) , arguments ) );
+	},
+
     RunQuiet : function(){
         $Globals.FilterExpression = /.*/i;
         var result = $$(FormatArguments(arguments));
@@ -243,10 +248,10 @@ $$.Extend( {
                 var cmdline = Collection.ToString(Arguments);
                 if( IsNullOrEmpty(cmdline) )
                     return;
-                if( folderExists(cmdline) || exists(cmdline))
-                    return $$('explorer {0}',cmdline);
                 if(cmdline.indexOf('$StdIn') >-1)
                     $StdIn=StdIn.ReadAll(); 
+                if( folderExists(cmdline) || exists(cmdline))
+                    return $$('explorer {0}',cmdline);
                 cmdline = cmdline.replace(/`/g,'"');
                 cmdline = cmdline.replace(/\\/g,'\\\\');
                 for(var each in KnownLibraries )
@@ -812,6 +817,16 @@ function folderExists(folder) {
     return $$.fso.FolderExists(FormatArguments(arguments));
 }
 
+function folderIsEmpty(folder) {
+	var fol = $$.fso.GetFolder(FormatArguments(arguments))
+	,	contents = 0
+	;
+	for( var fc = new Enumerator(fol.Files); !fc.atEnd(); fc.moveNext() ) contents++;
+	for( var fc = new Enumerator(fol.SubFolders); !fc.atEnd(); fc.moveNext() ) contents++;
+	
+	return (!contents);
+}
+
 function RenameFolder( srcFolderName, destFolderName ) {
     return $$.fso.MoveFolder(FormatArguments(arguments), FormatArguments(destFolderName, arguments));
 }
@@ -822,6 +837,15 @@ function mkdir(folder) {
         $$.fso.CreateFolder(folder);
     return folder;
 }
+
+mkdir.Extend({
+	recursive: function mkdir_recursive(folder){
+		folder = $$.fso.GetAbsolutePathName( FormatArguments( arguments ) );
+		if(!folderExists( parentFolder = $$.fso.GetParentFolderName( folder ) ) )
+			mkdir_recursive( parentFolder );
+		mkdir( folder );
+	}
+});
 
 function rename(srcfile, destfile) {
     srcfile = FormatArguments(srcfile, arguments);
@@ -1080,6 +1104,20 @@ function copyAsHardlink(src, dest) {
     Assert.Fail("Cannot find source file [{0}]" , src );
 }
 
+function getRelativePath( fromDir, toFileOrDir ) {
+	var fromDir = ( $$.fso.GetAbsolutePathName( fromDir ) ).split( '\\' );
+	var toFileOrDir = ( $$.fso.GetAbsolutePathName( toFileOrDir ) ).split( '\\' );
+	
+	// find out how much they have in common
+	var commonDepth = 0;
+	for( var depth in fromDir ) {
+		if( fromDir[depth] == toFileOrDir[depth] ) commonDepth++;
+		else break;
+	}
+	
+	return ( new Array( fromDir.length - commonDepth + 1 ) ).join( '..\\' ) + toFileOrDir.slice( commonDepth ).join( '\\' );
+}
+
 function md5(filename) {
     filename = FormatArguments(arguments);
     Assert.File(filename);
@@ -1099,8 +1137,28 @@ function ReplaceInFile( filename , searchForRx , replaceWith ) {
     WriteAll(filename, text);  
 }
 
+function ProcessCommandLineArguments() {
+    
+    while( $Arguments.length > 0 && $Arguments[0].indexOf("--") == 0 ) {
+        var arg = $Arguments.shift().substring(2).split("=");
+        $Globals["$"+arg[0]] = arg.length > 1 ? arg[1] : true;
+    }
+    
+}
+
 function GUID(seed) {
     return MD5(FormatArguments(arguments)).replace( /(........)(....)(....)(....)(............)/,"$1-$2-$3-$4-$5");
+}
+
+function SetClipboard(text) {
+    with (new ActiveXObject("Word.Application")) {
+        Visible = false;
+        Documents.Add();
+        Selection.TypeText(text);
+        Selection.WholeStory();
+        Selection.Copy();
+        Quit(false);            
+    }
 }
 
 $$.Init();
