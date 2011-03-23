@@ -18,13 +18,13 @@
 following to search the PATH for the js.js script, and load it:
 
 with( new ActiveXObject("Scripting.FileSystemObject")) 
-    for (var each in paths = (".;" + (new ActiveXObject("WScript.Shell").Environment("PROCESS")("PATH"))).split(";")) 
+    for (var each in paths = (".;js;scripts;"+WScript.scriptfullname.replace(/(.*\\)(.*)/g,"$1")+";"+new ActiveXObject("WScript.Shell").Environment("PROCESS")("PATH"))).split(";")) 
         if (FileExists(js = BuildPath(paths[each], "js.js"))) 
             { eval(OpenTextFile(js, 1, false).ReadAll()); break }
 
 or, compressed down:
 
-with(new ActiveXObject("Scripting.FileSystemObject"))for(var x in p=(".;"+new ActiveXObject("WScript.Shell").Environment("PROCESS")("PATH")).split(";"))if(FileExists(j=BuildPath(p[x],"js.js"))){eval(OpenTextFile(j).ReadAll());break}
+with(new ActiveXObject("Scripting.FileSystemObject"))for(var x in p=(".;js;scripts;"+WScript.scriptfullname.replace(/(.*\\)(.*)/g,"$1")+";"+new ActiveXObject("WScript.Shell").Environment("PROCESS")("PATH")).split(";"))if(FileExists(j=BuildPath(p[x],"js.js"))){eval(OpenTextFile(j).ReadAll());break}
 
 or, you can use it from an .HTA with a <script> element.
 */
@@ -185,6 +185,14 @@ $$.Extend( {
     
     Run : function(){
         return $$(FormatArguments(arguments));
+    },
+
+    RunWithoutStreams : function(){
+        $$.WSHShell.Run(FormatArguments(arguments),10,false);
+    },
+    
+    RunWithoutStreamsAndWait : function(){
+        $$.WSHShell.Run(FormatArguments(arguments),10,true);
     },
 
 	cmd:function(){ 
@@ -1003,7 +1011,7 @@ function which(filenameToFind) {
         }
     }
 
-    for (var each in paths = (".;" + $PATH).split(";")) {
+    for (var each in paths = (".;"+ WScript.scriptfullname.replace( /(.*\\)(.*)/g, "$1")+";" + $PATH).split(";")) {
         var testPath = $$.fso.BuildPath(paths[each], filenameToFind);
         if (exists(testPath)) {
             return $$.fso.GetAbsolutePathName(testPath);
@@ -1066,6 +1074,7 @@ function FormatThisFile() {
 
 function WriteAll(filename, text) {
     filename = FormatArguments(arguments);
+    text = FormatArguments(text, arguments);
     var f = $$.fso.OpenTextFile(filename, 2, true);
     f.WriteLine(text);
     f.Close();
